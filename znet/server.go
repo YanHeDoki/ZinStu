@@ -1,7 +1,6 @@
 package znet
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"zinx/ziface"
@@ -16,16 +15,9 @@ type Server struct {
 	IP string
 	//服务器监听的端口
 	Port int
-}
 
-//暂且写死这个方法
-func CallBack(conn *net.TCPConn, buf []byte, n int) error {
-	wl, err := conn.Write(buf[:n])
-	if err != nil {
-		return errors.New("Read err")
-	}
-	fmt.Println("callback write len is ", wl)
-	return nil
+	//当前的对象添加一个router server注册的链接对应的业务
+	Router ziface.IRouter
 }
 
 func (s *Server) Start() {
@@ -60,7 +52,7 @@ func (s *Server) Start() {
 				continue
 			}
 			//使用新的connection模块
-			newConnection := NewConnection(conn, cid, CallBack)
+			newConnection := NewConnection(conn, cid, s.Router)
 			cid++
 			newConnection.Start()
 		}
@@ -85,6 +77,11 @@ func (s *Server) Server() {
 	for {
 
 	}
+
+}
+
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
 }
 
 //初始化server服务器方法
@@ -93,5 +90,6 @@ func NewServer(name string) ziface.IServer {
 		Name:      name,
 		IPVersion: "tcp4",
 		Port:      8999,
+		Router:    nil,
 	}
 }

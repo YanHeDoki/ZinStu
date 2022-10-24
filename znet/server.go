@@ -1,8 +1,8 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
-	"io"
 	"net"
 	"zinx/ziface"
 )
@@ -16,6 +16,16 @@ type Server struct {
 	IP string
 	//服务器监听的端口
 	Port int
+}
+
+//暂且写死这个方法
+func CallBack(conn *net.TCPConn, buf []byte, n int) error {
+	wl, err := conn.Write(buf[:n])
+	if err != nil {
+		return errors.New("Read err")
+	}
+	fmt.Println("callback write len is ", wl)
+	return nil
 }
 
 func (s *Server) Start() {
@@ -40,7 +50,8 @@ func (s *Server) Start() {
 		}
 
 		fmt.Println("Start Zinx Server success", s.Name, "success Listening...")
-
+		var cid uint32
+		cid = 0
 		//阻塞的等待客户端的连接 处理客户端的链接业务（读写）
 		for {
 			conn, err := listen.AcceptTCP()
@@ -48,28 +59,10 @@ func (s *Server) Start() {
 				fmt.Println("AcceptTCP err:", err)
 				continue
 			}
-			//我们这里暂时做一个最大512字节的回显服务
-
-			//用go来异步处理
-			go func() {
-				for {
-					buf := make([]byte, 512)
-					cnt, err := conn.Read(buf)
-					if err != nil {
-						if err == io.EOF {
-							err = nil
-							continue
-						}
-						fmt.Println("Read err:", err)
-						continue
-					}
-					_, err = conn.Write(buf[:cnt])
-					if err != nil {
-						fmt.Println("Write err:", err)
-						continue
-					}
-				}
-			}()
+			//使用新的connection模块
+			newConnection := NewConnection(conn, cid, CallBack)
+			cid++
+			newConnection.Start()
 		}
 	}()
 

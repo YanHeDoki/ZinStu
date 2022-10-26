@@ -3,6 +3,7 @@ package znet
 import (
 	"fmt"
 	"net"
+	"zinx/utils"
 	"zinx/ziface"
 )
 
@@ -32,13 +33,13 @@ func (s *Server) Start() {
 		resolveIPAddr, err := net.ResolveTCPAddr(s.IPVersion, fmt.Sprintf("%s:%d", s.IP, s.Port))
 		if err != nil {
 			fmt.Println("Start ServerErr err:", err)
-			return
+			panic(err)
 		}
 		//监听服务器的地址
 		listen, err := net.ListenTCP(s.IPVersion, resolveIPAddr)
 		if err != nil {
 			fmt.Println("ListenIPErr err:", err)
-			return
+			panic(err)
 		}
 
 		fmt.Println("Start Zinx Server success", s.Name, "success Listening...")
@@ -85,11 +86,12 @@ func (s *Server) AddRouter(router ziface.IRouter) {
 }
 
 //初始化server服务器方法
-func NewServer(name string) ziface.IServer {
+func NewServer() ziface.IServer {
 	return &Server{ //报错不能返回这个类型
-		Name:      name,
+		Name:      utils.GlobalConfig.Name,
 		IPVersion: "tcp4",
-		Port:      8999,
+		Port:      utils.GlobalConfig.TcpPort,
 		Router:    nil,
+		IP:        utils.GlobalConfig.Host,
 	}
 }

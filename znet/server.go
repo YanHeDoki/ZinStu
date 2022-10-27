@@ -74,11 +74,7 @@ func (s *Server) Server() {
 
 	//TODO 留空位可以给以后操作空间
 	//阻塞 否则主Go退出， listenner的go将会退出
-	//select {}
-	for {
-
-	}
-
+	select {}
 }
 
 func (s *Server) AddRouter(router ziface.IRouter) {

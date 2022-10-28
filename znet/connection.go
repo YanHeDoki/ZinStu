@@ -24,7 +24,8 @@ type Connection struct {
 
 	//告知当前链接已经退出的channel
 	ExitChan chan bool
-
+	//无缓冲管道，用于读、写两个goroutine之间的消息通信
+	MsgChan chan []byte
 	//该链接处理的方法
 	//消息的管理msgid对应的方法业务
 	MsgHandler ziface.IMsgHandle
@@ -82,12 +83,42 @@ func (c *Connection) StartReader() {
 	}
 }
 
+/*
+	写消息Goroutine， 用户将数据发送给客户端
+*/
+func (c *Connection) StartWrite() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.RemoteAddr().String(), "[conn Writer exit!]")
+
+	for {
+		select {
+		case data := <-c.MsgChan:
+			//有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("Send Data error: ", err, " Conn Writer exit")
+				return
+			}
+		case <-c.ExitChan:
+			//conn已经关闭
+			return
+		}
+	}
+}
+
 func (c *Connection) Start() {
 	fmt.Println("conn starting...ConnID=", c.ConnID)
 	//启动当前链接的读数据业务
 	go c.StartReader()
-	//todo 启动当前链接的读数据业务
+	// 启动当前链接的读数据业务
+	go c.StartWrite()
 
+	//for {
+	//	select {
+	//	case <-c.ExitChan:
+	//		//得到退出消息，不再阻塞
+	//		return
+	//	}
+	//}
 }
 
 func (c *Connection) Stop() {
@@ -95,11 +126,14 @@ func (c *Connection) Stop() {
 
 	if c.IsClosed {
 		return
-	} else {
-		c.IsClosed = true
-		c.Conn.Close()
-		close(c.ExitChan)
 	}
+
+	c.IsClosed = true
+	c.Conn.Close()
+
+	//结束 通知chan已经结束了连接
+	c.ExitChan <- true
+	close(c.ExitChan)
 	fmt.Println("conn close suucess")
 }
 
@@ -124,11 +158,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	if err != nil {
 		return err
 	}
-	_, err = c.Conn.Write(binaryMesg)
-	if err != nil {
-		return err
-	}
-
+	c.MsgChan <- binaryMesg
 	return nil
 }
 
@@ -139,6 +169,7 @@ func NewConnection(conn *net.TCPConn, ConnID uint32, msghandler ziface.IMsgHandl
 		IsClosed:   false,
 		ExitChan:   make(chan bool, 1),
 		MsgHandler: msghandler,
+		MsgChan:    make(chan []byte),
 	}
 
 }

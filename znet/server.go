@@ -49,6 +49,7 @@ func (s *Server) Start() {
 		//阻塞的等待客户端的连接 处理客户端的链接业务（读写）
 		for {
 			conn, err := listen.AcceptTCP()
+			fmt.Println("test")
 			if err != nil {
 				fmt.Println("AcceptTCP err:", err)
 				continue
@@ -56,7 +57,7 @@ func (s *Server) Start() {
 			//使用新的connection模块
 			newConnection := NewConnection(conn, cid, s.MsgHandler)
 			cid++
-			newConnection.Start()
+			go newConnection.Start()
 		}
 	}()
 

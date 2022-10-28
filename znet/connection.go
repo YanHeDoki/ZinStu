@@ -26,7 +26,8 @@ type Connection struct {
 	ExitChan chan bool
 
 	//该链接处理的方法
-	Router ziface.IRouter
+	//消息的管理msgid对应的方法业务
+	MsgHandler ziface.IMsgHandle
 }
 
 func (c *Connection) StartReader() {
@@ -77,11 +78,7 @@ func (c *Connection) StartReader() {
 		}
 
 		//从路由中 找到注册绑定的Conn对应的router调用
-		go func(request *Request) {
-			c.Router.PreHandle(request)
-			c.Router.Handle(request)
-			c.Router.AfterHandle(request)
-		}(&req)
+		go c.MsgHandler.DoMsgHandler(&req)
 	}
 }
 
@@ -135,13 +132,13 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, ConnID uint32, router ziface.IRouter) *Connection {
+func NewConnection(conn *net.TCPConn, ConnID uint32, msghandler ziface.IMsgHandle) *Connection {
 	return &Connection{
-		Conn:     conn,
-		ConnID:   ConnID,
-		IsClosed: false,
-		ExitChan: make(chan bool, 1),
-		Router:   router,
+		Conn:       conn,
+		ConnID:     ConnID,
+		IsClosed:   false,
+		ExitChan:   make(chan bool, 1),
+		MsgHandler: msghandler,
 	}
 
 }

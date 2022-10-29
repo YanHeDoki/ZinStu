@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"zinx/utils"
 	"zinx/ziface"
 )
 
@@ -78,8 +79,14 @@ func (c *Connection) StartReader() {
 			msg:  message,
 		}
 
-		//从路由中 找到注册绑定的Conn对应的router调用
-		go c.MsgHandler.DoMsgHandler(&req)
+		//已经设置开启了工作池
+		if utils.GlobalConfig.WorkerPoolSize > 0 {
+			//发送消息到消息队列由工作池来处理
+			c.MsgHandler.SendMsgToTaskQueue(&req)
+		} else {
+			//从路由中 找到注册绑定的Conn对应的router调用
+			go c.MsgHandler.DoMsgHandler(&req)
+		}
 	}
 }
 
@@ -112,13 +119,13 @@ func (c *Connection) Start() {
 	// 启动当前链接的读数据业务
 	go c.StartWrite()
 
-	//for {
-	//	select {
-	//	case <-c.ExitChan:
-	//		//得到退出消息，不再阻塞
-	//		return
-	//	}
-	//}
+	for {
+		select {
+		case <-c.ExitChan:
+			//得到退出消息，不再阻塞
+			return
+		}
+	}
 }
 
 func (c *Connection) Stop() {

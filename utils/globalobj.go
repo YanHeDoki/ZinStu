@@ -19,9 +19,12 @@ type GlobalObj struct {
 	Name      string         //当前服务器的名称
 
 	//	Zinx
-	Version        string //Zinx版本
-	MaxConn        int    //最大连接数量
-	MaxPackageSize uint32 //当前Zinx框架数据包的最大尺寸
+	Version          string //Zinx版本
+	MaxConn          int    //最大连接数量
+	MaxPackageSize   uint32 //当前Zinx框架数据包的最大尺寸
+	WorkerPoolSize   uint32 //业务工作Worker池的数量
+	MaxWorkerTaskLen uint32 //业务工作Worker对应负责的任务队列最大任务存储数量
+
 }
 
 func (g *GlobalObj) Reload() {
@@ -43,12 +46,14 @@ var GlobalConfig *GlobalObj
 func ConfigInit() {
 	//如果配置文件没有加载就是默认值
 	GlobalConfig = &GlobalObj{
-		Host:           "0.0.0.0",
-		TcpPort:        8999,
-		Name:           "ZinxServerApp",
-		Version:        "V0.4",
-		MaxConn:        1000,
-		MaxPackageSize: 4096,
+		Host:             "0.0.0.0",
+		TcpPort:          8999,
+		Name:             "ZinxServerApp",
+		Version:          "V0.4",
+		MaxConn:          1000,
+		MaxPackageSize:   4096,
+		WorkerPoolSize:   10,
+		MaxWorkerTaskLen: 1024,
 	}
 
 	//应该尝试从Config/zinx中的用户自定义的json文件中读取

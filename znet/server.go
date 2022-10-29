@@ -27,6 +27,8 @@ func (s *Server) Start() {
 	//日志，以后应该用日志来处理
 	fmt.Printf("[start]Server Listenner at IP %s,Port %d ,is staring", s.IP, s.Port)
 
+	//开启工作线程池
+	s.MsgHandler.StartWorkerPool()
 	//由server方法来阻塞所以异步处理
 
 	go func() {
@@ -49,11 +51,11 @@ func (s *Server) Start() {
 		//阻塞的等待客户端的连接 处理客户端的链接业务（读写）
 		for {
 			conn, err := listen.AcceptTCP()
-			fmt.Println("test")
 			if err != nil {
 				fmt.Println("AcceptTCP err:", err)
 				continue
 			}
+			fmt.Println("test@", cid)
 			//使用新的connection模块
 			newConnection := NewConnection(conn, cid, s.MsgHandler)
 			cid++

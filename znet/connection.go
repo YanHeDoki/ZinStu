@@ -11,7 +11,8 @@ import (
 
 //当前链接模块
 type Connection struct {
-
+	//当前链接隶属于哪个Server
+	TcpServer ziface.IServer
 	//当前链接的 socket tcp 套接字
 	Conn *net.TCPConn
 	//链接的ID
@@ -27,6 +28,8 @@ type Connection struct {
 	ExitChan chan bool
 	//无缓冲管道，用于读、写两个goroutine之间的消息通信
 	MsgChan chan []byte
+	//有缓冲管道，用于读、写两个goroutine之间的消息通信
+	MsgBuffChan chan []byte //定义channel成员
 	//该链接处理的方法
 	//消息的管理msgid对应的方法业务
 	MsgHandler ziface.IMsgHandle
@@ -105,6 +108,20 @@ func (c *Connection) StartWrite() {
 				fmt.Println("Send Data error: ", err, " Conn Writer exit")
 				return
 			}
+
+			//针对有缓冲channel需要些的数据处理
+		case data, ok := <-c.MsgBuffChan:
+			if ok {
+				//有数据要写给客户端
+				if _, err := c.Conn.Write(data); err != nil {
+					fmt.Println("Send Buff Data error:, ", err, " Conn Writer exit")
+					return
+				}
+			} else {
+				fmt.Println("MsgBuffChan is Closed")
+				break
+			}
+		//用于退出
 		case <-c.ExitChan:
 			//conn已经关闭
 			return
@@ -118,7 +135,8 @@ func (c *Connection) Start() {
 	go c.StartReader()
 	// 启动当前链接的读数据业务
 	go c.StartWrite()
-
+	//调用开发者设置的启动前的钩子函数
+	c.TcpServer.CallOnConnStart(c)
 	for {
 		select {
 		case <-c.ExitChan:
@@ -136,11 +154,15 @@ func (c *Connection) Stop() {
 	}
 
 	c.IsClosed = true
+	//在销毁连接之前执行开发者的函数
+	c.TcpServer.CallOnConnStop(c)
 	c.Conn.Close()
 
 	//结束 通知chan已经结束了连接
 	c.ExitChan <- true
 	close(c.ExitChan)
+	//将当前链接从connmgr中销毁
+	c.TcpServer.GetMgr().Remove(c)
 	fmt.Println("conn close suucess")
 }
 
@@ -161,22 +183,43 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 		return errors.New("conn isClosed when send msg")
 	}
 	dp := NewDP()
-	binaryMesg, err := dp.Pack(NewMsgPackage(msgId, data))
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
 	if err != nil {
 		return err
 	}
-	c.MsgChan <- binaryMesg
+	c.MsgChan <- msg
 	return nil
 }
 
-func NewConnection(conn *net.TCPConn, ConnID uint32, msghandler ziface.IMsgHandle) *Connection {
-	return &Connection{
-		Conn:       conn,
-		ConnID:     ConnID,
-		IsClosed:   false,
-		ExitChan:   make(chan bool, 1),
-		MsgHandler: msghandler,
-		MsgChan:    make(chan []byte),
+//带缓冲发送消息
+func (c *Connection) SendBuffMsg(msgId uint32, data []byte) error {
+	if c.IsClosed == true {
+		return errors.New("Connection closed when send buff msg")
+	}
+	//将data封包，并且发送
+	dp := NewDP()
+	msg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack error msg id = ", msgId)
+		return errors.New("Pack error msg ")
 	}
 
+	//写回客户端
+	c.MsgBuffChan <- msg
+	return nil
+}
+
+func NewConnection(server ziface.IServer, conn *net.TCPConn, ConnID uint32, msghandler ziface.IMsgHandle) *Connection {
+	c := &Connection{
+		Conn:        conn,
+		ConnID:      ConnID,
+		IsClosed:    false,
+		ExitChan:    make(chan bool, 1),
+		MsgHandler:  msghandler,
+		MsgChan:     make(chan []byte),
+		MsgBuffChan: make(chan []byte, utils.GlobalConfig.MaxWorkerTaskLen), //不要忘记初始化
+		TcpServer:   server,
+	}
+	c.TcpServer.GetMgr().Add(c)
+	return c
 }
